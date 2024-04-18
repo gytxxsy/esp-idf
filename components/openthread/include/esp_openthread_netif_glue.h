@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -66,6 +66,15 @@ void esp_openthread_netif_glue_deinit(void);
  *
  */
 esp_netif_t *esp_openthread_get_netif(void);
+
+/**
+ * @brief This function register a handler for meshcop-e service publish event and remove event.
+ *
+ * @param[in] handler       The handler.
+ * @param[in] for_publish   The usage of handler, true for publish event and false for remove event.
+ *
+ */
+void esp_openthread_register_meshcop_e_handler(esp_event_handler_t handler, bool for_publish);
 
 #ifdef __cplusplus
 }
