@@ -273,5 +273,47 @@ esp_err_t example_wifi_connect(void)
     return example_wifi_sta_do_connect(wifi_config, true);
 }
 
+// just a function for demo
+esp_err_t example_wifi_connect_with_ssid(const char *ssid, const char *password)
+{
+    ESP_LOGI(TAG, "Start example_connect.");
+    example_wifi_start();
+    wifi_config_t wifi_config = {
+        .sta = {
+#if !CONFIG_EXAMPLE_WIFI_SSID_PWD_FROM_STDIN
+            .ssid = "",
+            .password = "",
+#endif
+            .scan_method = EXAMPLE_WIFI_SCAN_METHOD,
+            .sort_method = EXAMPLE_WIFI_CONNECT_AP_SORT_METHOD,
+            .threshold.rssi = CONFIG_EXAMPLE_WIFI_SCAN_RSSI_THRESHOLD,
+            .threshold.authmode = EXAMPLE_WIFI_SCAN_AUTH_MODE_THRESHOLD,
+        },
+    };
+    memcpy(wifi_config.sta.ssid, ssid, strlen(ssid) + 1);
+    memcpy(wifi_config.sta.password, password, strlen(password) + 1);
+#if CONFIG_EXAMPLE_WIFI_SSID_PWD_FROM_STDIN
+    example_configure_stdin_stdout();
+    char buf[sizeof(wifi_config.sta.ssid)+sizeof(wifi_config.sta.password)+2] = {0};
+    ESP_LOGI(TAG, "Please input ssid password:");
+    fgets(buf, sizeof(buf), stdin);
+    int len = strlen(buf);
+    buf[len-1] = '\0'; /* removes '\n' */
+    memset(wifi_config.sta.ssid, 0, sizeof(wifi_config.sta.ssid));
+
+    char *rest = NULL;
+    char *temp = strtok_r(buf, " ", &rest);
+    strncpy((char*)wifi_config.sta.ssid, temp, sizeof(wifi_config.sta.ssid));
+    memset(wifi_config.sta.password, 0, sizeof(wifi_config.sta.password));
+    temp = strtok_r(NULL, " ", &rest);
+    if (temp) {
+        strncpy((char*)wifi_config.sta.password, temp, sizeof(wifi_config.sta.password));
+    } else {
+        wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
+    }
+#endif
+    return example_wifi_sta_do_connect(wifi_config, true);
+}
+
 
 #endif /* CONFIG_EXAMPLE_CONNECT_WIFI */

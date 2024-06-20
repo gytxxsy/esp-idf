@@ -123,6 +123,18 @@ esp_err_t example_connect(void)
     return ESP_OK;
 }
 
+// just a function for demo
+esp_err_t example_connect_wifi(const char *ssid, const char *password)
+{
+#if CONFIG_EXAMPLE_CONNECT_WIFI
+    if (example_wifi_connect_with_ssid(ssid, password) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    ESP_ERROR_CHECK(esp_register_shutdown_handler(&example_wifi_shutdown));
+#endif
+    return ESP_OK;
+}
+
 
 esp_err_t example_disconnect(void)
 {

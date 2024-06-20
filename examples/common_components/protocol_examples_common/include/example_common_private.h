@@ -43,6 +43,7 @@ bool example_is_our_netif(const char *prefix, esp_netif_t *netif);
 void example_print_all_netif_ips(const char *prefix);
 void example_wifi_shutdown(void);
 esp_err_t example_wifi_connect(void);
+esp_err_t example_wifi_connect_with_ssid(const char *ssid, const char *password);
 void example_ethernet_shutdown(void);
 esp_err_t example_ethernet_connect(void);
 esp_err_t example_ppp_connect(void);

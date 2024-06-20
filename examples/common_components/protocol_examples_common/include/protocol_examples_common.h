@@ -64,6 +64,8 @@ extern "C" {
  */
 esp_err_t example_connect(void);
 
+esp_err_t example_connect_wifi(const char *ssid, const char *password);
+
 /**
  * Counterpart to example_connect, de-initializes Wi-Fi or Ethernet
  */
