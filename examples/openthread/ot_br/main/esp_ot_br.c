@@ -47,6 +47,10 @@
 #include "openthread/logging.h"
 #include "openthread/tasklet.h"
 
+#include "argtable3/argtable3.h"
+#include "esp_console.h"
+#include "driver/gpio.h"
+
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
 #include "ot_led_strip.h"
 #endif
@@ -83,12 +87,13 @@ static void rcp_failure_hardware_reset_handler(void)
 }
 #endif
 
+static esp_external_coex_gpio_set_t s_gpio_pin = ESP_OPENTHREAD_DEFAULT_EXTERNAL_COEX_CONFIG();
+
 #if CONFIG_EXTERNAL_COEX_ENABLE
 static void ot_br_external_coexist_init(void)
 {
-    esp_external_coex_gpio_set_t gpio_pin = ESP_OPENTHREAD_DEFAULT_EXTERNAL_COEX_CONFIG();
     esp_external_coex_set_work_mode(EXTERNAL_COEX_LEADER_ROLE);
-    ESP_ERROR_CHECK(esp_enable_extern_coex_gpio_pin(CONFIG_EXTERNAL_COEX_WIRE_TYPE, gpio_pin));
+    ESP_ERROR_CHECK(esp_enable_extern_coex_gpio_pin(CONFIG_EXTERNAL_COEX_WIRE_TYPE, s_gpio_pin));
 }
 #endif /* CONFIG_EXTERNAL_COEX_ENABLE */
 
@@ -165,9 +170,6 @@ void ot_br_init(void *ctx)
 #endif
 #endif // CONFIG_OPENTHREAD_BR_AUTO_START
 
-#if CONFIG_EXTERNAL_COEX_ENABLE
-    ot_br_external_coexist_init();
-#endif // CONFIG_EXTERNAL_COEX_ENABLE
     ESP_ERROR_CHECK(mdns_init());
     ESP_ERROR_CHECK(mdns_hostname_set("esp-ot-br"));
 
@@ -191,6 +193,90 @@ void ot_br_init(void *ctx)
 #endif // CONFIG_OPENTHREAD_BR_AUTO_START
     esp_openthread_lock_release();
     vTaskDelete(NULL);
+}
+
+static void init_gpio(void)
+{
+    gpio_config_t io_conf = {};
+    //disable interrupt
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    //set as output mode
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+#if CONFIG_EXTERNAL_COEX_WIRE_TYPE > 1
+    io_conf.pin_bit_mask = (1ULL<<s_gpio_pin.grant);
+#endif
+#if CONFIG_EXTERNAL_COEX_WIRE_TYPE == 4
+    io_conf.pin_bit_mask |= (1ULL<<s_gpio_pin.tx_line);
+#endif
+
+    //disable pull-down mode
+    io_conf.pull_down_en = 0;
+    //disable pull-up mode
+    io_conf.pull_up_en = 0;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
+}
+
+static struct {
+    struct arg_lit *enable;
+    struct arg_lit *disable;
+    struct arg_lit *gpio_set;
+    struct arg_end *end;
+} extcoex_args;
+
+static int process_extcoex_config(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **) &extcoex_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, extcoex_args.end, argv[0]);
+        return 1;
+    }
+
+    if (extcoex_args.enable->count) {
+        ESP_LOGI(TAG, "Enable external coex");
+        ot_br_external_coexist_init();
+        return 0;
+    }
+    if (extcoex_args.disable->count) {
+        ESP_LOGI(TAG, "Disable external coex");
+        esp_disable_extern_coex_gpio_pin();
+        return 0;
+    }
+    if (extcoex_args.gpio_set->count) {
+#if CONFIG_EXTERNAL_COEX_WIRE_TYPE > 1
+        init_gpio();
+        gpio_set_level(s_gpio_pin.grant, 1);
+#endif
+#if CONFIG_EXTERNAL_COEX_WIRE_TYPE == 4
+        gpio_set_level(s_gpio_pin.tx_line, 0);
+#endif
+        ESP_LOGI(TAG, "Set gpio for slave");
+        return 0;
+    }
+    return 0;
+}
+
+// only for test extcoex
+void register_extcoex_cmd(void)
+{
+    extcoex_args.enable =
+        arg_lit0("e", "enable", "enable ext coexist");
+    extcoex_args.disable =
+        arg_lit0("d", "disable", "disable ext coexist");
+    extcoex_args.gpio_set =
+        arg_lit0("g", "gpio_set", "set gpio for slave");
+    extcoex_args.end = arg_end(3);
+
+    const esp_console_cmd_t cmd = {
+        .command = "extcoex",
+        .help = "configure the extcoex",
+        .hint = NULL,
+        .func = &process_extcoex_config,
+        .argtable = &extcoex_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+
 }
 
 void app_main(void)
@@ -218,4 +304,5 @@ void app_main(void)
 #endif
     xTaskCreate(ot_task_worker, "ot_br_main", 8192, xTaskGetCurrentTaskHandle(), 5, NULL);
     xTaskCreate(ot_br_init, "ot_br_init", 6144, NULL, 4, NULL);
+    register_extcoex_cmd();
 }
